@@ -1,6 +1,8 @@
 from ssl import VerifyMode
+from unittest.mock import patch
 
 import httpx
+import pytest
 
 from fastmcp.client.auth.oauth import OAuth
 from fastmcp.client.transports import SSETransport, StreamableHttpTransport
@@ -40,3 +42,49 @@ async def test_oauth_uses_same_client_as_transport_sse():
             httpx_client._transport._pool._ssl_context.verify_mode  # type: ignore[attr-defined]
             == VerifyMode.CERT_NONE
         )
+
+
+@pytest.mark.anyio
+async def test_streamable_http_factory_disables_redirects():
+    captured_kwargs: dict[str, object] = {}
+
+    def factory(**kwargs):
+        captured_kwargs.update(kwargs)
+        return httpx.AsyncClient(**kwargs)
+
+    transport = StreamableHttpTransport(
+        "https://some.fake.url/",
+        httpx_client_factory=factory,
+    )
+
+    with patch(
+        "fastmcp.client.transports.http.streamable_http_client",
+        side_effect=RuntimeError("stop"),
+    ):
+        with pytest.raises(RuntimeError, match="stop"):
+            async with transport.connect_session():
+                pass
+
+    assert captured_kwargs["follow_redirects"] is False
+
+
+@pytest.mark.anyio
+async def test_streamable_http_default_client_disables_redirects():
+    transport = StreamableHttpTransport("https://some.fake.url/")
+
+    with (
+        patch(
+            "fastmcp.client.transports.http.httpx.AsyncClient",
+            wraps=httpx.AsyncClient,
+        ) as async_client,
+        patch(
+            "fastmcp.client.transports.http.streamable_http_client",
+            side_effect=RuntimeError("stop"),
+        ),
+    ):
+        with pytest.raises(RuntimeError, match="stop"):
+            async with transport.connect_session():
+                pass
+
+    assert async_client.call_args is not None
+    assert async_client.call_args.kwargs["follow_redirects"] is False

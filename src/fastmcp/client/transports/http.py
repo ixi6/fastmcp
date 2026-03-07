@@ -10,7 +10,7 @@ from typing import Literal, cast
 import httpx
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
-from mcp.shared._httpx_utils import McpHttpClientFactory, create_mcp_http_client
+from mcp.shared._httpx_utils import McpHttpClientFactory
 from pydantic import AnyUrl
 from typing_extensions import Unpack
 
@@ -106,21 +106,20 @@ class StreamableHttpTransport(ClientTransport):
             timeout = httpx.Timeout(30.0, read=read_timeout_seconds.total_seconds())
 
         # Create httpx client from factory or use default with MCP-appropriate timeouts
-        # create_mcp_http_client uses 30s connect/5min read timeout by default,
-        # and always enables follow_redirects
         if self.httpx_client_factory is not None:
             # Factory clients get the full kwargs for backwards compatibility
             http_client = self.httpx_client_factory(
                 headers=headers,
                 auth=self.auth,
-                follow_redirects=True,  # type: ignore[call-arg]
+                follow_redirects=False,  # type: ignore[call-arg]
                 **({"timeout": timeout} if timeout else {}),
             )
         else:
-            http_client = create_mcp_http_client(
+            http_client = httpx.AsyncClient(
                 headers=headers,
-                timeout=timeout,
                 auth=self.auth,
+                follow_redirects=False,
+                timeout=timeout or httpx.Timeout(30.0, read=300.0),
             )
 
         # Ensure httpx client is closed after use
