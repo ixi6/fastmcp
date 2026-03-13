@@ -42,10 +42,6 @@ GOOGLE_SCOPE_ALIASES: dict[str, str] = {
     "profile": "https://www.googleapis.com/auth/userinfo.profile",
 }
 
-GOOGLE_SCOPE_ALIASES_REVERSE: dict[str, str] = {
-    v: k for k, v in GOOGLE_SCOPE_ALIASES.items()
-}
-
 
 def _normalize_google_scope(scope: str) -> str:
     """Normalize a Google scope shorthand to its canonical full URI.
